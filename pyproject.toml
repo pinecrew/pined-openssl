@@ -1,0 +1,48 @@
+[project]
+name = "pkcs12"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "cryptography>=46.0.5",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+
+
+[tool.setuptools]
+ext-modules = [
+  {name = "pkcs12.native", sources = ["src/pkcs12/native.c"], extra-link-args=["-lcrypto"]}
+]
+
+[tool.uv.workspace]
+members = [
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+    ".",
+]
+
+[tool.uv.sources]
+pkcs12 = { workspace = true, editable = true }
+
+[dependency-groups]
+dev = [
+    "pkcs12",
+]
