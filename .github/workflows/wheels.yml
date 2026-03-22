@@ -27,8 +27,8 @@ jobs:
         uses: pypa/cibuildwheel@v3.4.0
         env:
           MACOSX_DEPLOYMENT_TARGET: "14.0"
-          CIBW_ENVIRONMENT_MACOS: '{CPPFLAGS="-I/opt/homebrew/include/", LDFLAGS="-L/opt/homebrew/lib/"}'
-          CIBW_ENVIRONMENT_LINUX: '{CPPFLAGS="-I/opt/pyca/cryptography/openssl/include/", LDFLAGS="-L/opt/pyca/cryptography/openssl/lib64/"}'
+          CIBW_ENVIRONMENT_MACOS: 'CPPFLAGS="-I/opt/homebrew/include/" LDFLAGS="-L/opt/homebrew/lib/"'
+          CIBW_ENVIRONMENT_LINUX: 'CPPFLAGS="-I/opt/pyca/cryptography/openssl/include/" LDFLAGS="-L/opt/pyca/cryptography/openssl/lib64/"'
           CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-manylinux2014:x86_64
           CIBW_MUSLLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-musllinux_1_2:x86_64
 
