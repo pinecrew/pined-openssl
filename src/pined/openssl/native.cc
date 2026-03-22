@@ -53,17 +53,6 @@ struct BIO {
       : bio(::BIO_new_mem_buf(buffer.buf, buffer.len)) {}
   ~BIO() { ::BIO_free(bio); }
 
-  PyObject *to_bytes() const {
-    char *data = NULL;
-    long len = BIO_get_mem_data(bio, &data);
-    // if (len <= 0) {
-    //   PyErr_SetString(OpenSSLError, "Failed to export certificates data");
-    //   goto err;
-    // }
-
-    return PyBytes_FromStringAndSize(data, len);
-  }
-
   BIO &operator<<(const X509Certificate &certificate) {
     int ret = PEM_write_bio_X509(bio, certificate.certificate);
     return *this;
@@ -81,7 +70,8 @@ struct SafeBag {
       return std::nullopt;
     }
     // вот тут нюанс -- тут будет конструирование X509Certificate по месту
-    // иначе копирование и вызов деструктора, а умные указатели мне пока использовать не хочется
+    // иначе копирование и вызов деструктора, а умные указатели мне пока
+    // использовать не хочется
     return cert;
   }
 
@@ -183,6 +173,19 @@ struct PKCS12 {
 
 } // namespace openssl
 
+namespace python {
+PyObject *make_bytes(const openssl::BIO &bio) {
+  char *data = NULL;
+  long len = BIO_get_mem_data(bio.bio, &data);
+  // if (len <= 0) {
+  //   PyErr_SetString(OpenSSLError, "Failed to export certificates data");
+  //   goto err;
+  // }
+
+  return PyBytes_FromStringAndSize(data, len);
+}
+} // namespace python
+
 extern "C" {
 static PyObject *extract_certificates(PyObject *self, PyObject *args) {
   Py_buffer pkcs12_bytes;
@@ -210,7 +213,7 @@ static PyObject *extract_certificates(PyObject *self, PyObject *args) {
     return NULL;
   }
 
-  return output.to_bytes();
+  return python::make_bytes(output);
 }
 }
 
