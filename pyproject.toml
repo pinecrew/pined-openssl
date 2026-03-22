@@ -17,6 +17,9 @@ name = "pined.openssl.native"
 sources = ["src/pined/openssl/native.cc"]
 extra-link-args=["-lcrypto"]
 
+[tool.setuptools.exclude-package-data]
+"*" = ["*.cc"]
+
 [tool.pyright]
 venv = ".venv"
 venvPath = "."
