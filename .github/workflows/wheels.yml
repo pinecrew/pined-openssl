@@ -25,7 +25,10 @@ jobs:
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@main
         if: runner.os == 'macOS'
+
+      - name: Set up OpenSSL
         run: brew install openssl
+        if: runner.os == 'macOS'
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
