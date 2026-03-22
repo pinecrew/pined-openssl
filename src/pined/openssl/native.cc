@@ -48,7 +48,7 @@ struct X509Certificate {
 struct BIO {
   ::BIO *bio;
 
-  BIO() : bio(::BIO_new(BIO_s_mem())) {}
+  BIO() : bio(::BIO_new(::BIO_s_mem())) {}
   BIO(const Py_buffer &buffer)
       : bio(::BIO_new_mem_buf(buffer.buf, buffer.len)) {}
   ~BIO() { ::BIO_free(bio); }
@@ -70,7 +70,6 @@ struct BIO {
   }
 };
 
-namespace pkcs12 {
 struct SafeBag {
   ::PKCS12_SAFEBAG *bag;
 
@@ -81,7 +80,9 @@ struct SafeBag {
     if (cert == NULL) {
       return std::nullopt;
     }
-    return X509Certificate(cert);
+    // вот тут нюанс -- тут будет конструирование X509Certificate по месту
+    // иначе копирование и вызов деструктора, а умные указатели мне пока использовать не хочется
+    return cert;
   }
 
   ~SafeBag() {}
@@ -144,7 +145,7 @@ struct PKCS7_ {
   class iterator : public StackIterator<PKCS7_, SafeBag> {
   public:
     iterator(PKCS7_ &p, int i = 0) : StackIterator<PKCS7_, SafeBag>(p, i) {}
-    value_type get_value(openssl::pkcs12::PKCS7_ &p, int i) const override {
+    value_type get_value(openssl::PKCS7_ &p, int i) const override {
       return SafeBag(sk_PKCS12_SAFEBAG_value(p.bags, i));
     }
   };
@@ -171,7 +172,7 @@ struct PKCS12 {
   class iterator : public StackIterator<PKCS12, PKCS7_> {
   public:
     iterator(PKCS12 &p, int i = 0) : StackIterator<PKCS12, PKCS7_>(p, i) {}
-    value_type get_value(openssl::pkcs12::PKCS12 &p, int i) const override {
+    value_type get_value(PKCS12 &p, int i) const override {
       return PKCS7_(sk_PKCS7_value(p.asafes, i), p.password);
     }
   };
@@ -180,32 +181,27 @@ struct PKCS12 {
   iterator end() { return iterator(*this, sk_PKCS7_num(asafes)); }
 };
 
-} // namespace pkcs12
 } // namespace openssl
 
 extern "C" {
 static PyObject *extract_certificates(PyObject *self, PyObject *args) {
-  Py_buffer pkcs12_data;
-  const char *pass;
+  Py_buffer pkcs12_bytes;
+  const char *password;
 
-  if (!PyArg_ParseTuple(args, "y*s", &pkcs12_data, &pass))
+  if (!PyArg_ParseTuple(args, "y*s", &pkcs12_bytes, &password))
     return NULL;
 
   auto default_provider = openssl::Provider("default");
   auto legacy_provider = openssl::Provider("legacy");
-
-  auto pkcs12_bio = openssl::BIO(pkcs12_data);
-
-  auto pkcs12 = openssl::pkcs12::PKCS12(pkcs12_bio, pass);
-
-  auto certificates_bio = openssl::BIO();
+  auto pkcs12_bio = openssl::BIO(pkcs12_bytes);
+  auto pkcs12 = openssl::PKCS12(pkcs12_bio, password);
+  auto output = openssl::BIO();
 
   try {
     for (auto pkcs7 : pkcs12) {
       for (auto bag : pkcs7) {
-        auto certificate = bag.get_certificate();
-        if (certificate) {
-          certificates_bio << *certificate;
+        if (auto certificate = bag.get_certificate()) {
+          output << *certificate;
         }
       }
     }
@@ -213,7 +209,8 @@ static PyObject *extract_certificates(PyObject *self, PyObject *args) {
     PyErr_SetString(OpenSSLError, "Invalid password");
     return NULL;
   }
-  return certificates_bio.to_bytes();
+
+  return output.to_bytes();
 }
 }
 
