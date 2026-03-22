@@ -26,10 +26,14 @@ jobs:
 
       - name: Set up compiler flags
         run: |
-            echo 'CPPFLAGS="-I/opt/homebrew/include/"' >> $GITHUB_ENV
-            echo 'LDFLAGS="-L/opt/homebrew/lib/"' >> $GITHUB_ENV
+            if [ "${{ runner.os }}" == "macOS" ]; then
+              echo 'CPPFLAGS="-I/opt/homebrew/include/"' >> $GITHUB_ENV
+              echo 'LDFLAGS="-L/opt/homebrew/lib/"' >> $GITHUB_ENV
+            else
+              echo 'CPPFLAGS="-I/opt/pyca/cryptography/openssl/include/"' >> $GITHUB_ENV
+              echo 'LDFLAGS="-L/opt/pyca/cryptography/openssl/lib64/"' >> $GITHUB_ENV
+            fi
         shell: bash
-        if: runner.os == 'macOS'
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
