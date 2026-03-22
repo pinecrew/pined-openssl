@@ -75,7 +75,7 @@ struct SafeBag {
 
   SafeBag(::PKCS12_SAFEBAG *bag) : bag(bag) {}
 
-  X509Certificate get_certificate() throw(NoCertificateException) {
+  X509Certificate get_certificate() {
     X509 *cert = PKCS12_SAFEBAG_get1_cert(bag);
     if (cert == NULL) {
       throw NoCertificateException();
@@ -214,11 +214,11 @@ static PyObject *extract_certificates(PyObject *self, PyObject *args) {
       for (auto bag : pkcs7) {
         try {
           certificates_bio << bag.get_certificate();
-        } catch (openssl::NoCertificateException) {
+        } catch (openssl::NoCertificateException &_) {
         }
       }
     }
-  } catch (openssl::InvalidPassword) {
+  } catch (openssl::InvalidPassword &_) {
     PyErr_SetString(OpenSSLError, "Invalid password");
     return NULL;
   }
