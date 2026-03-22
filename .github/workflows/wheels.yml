@@ -30,6 +30,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: 'CPPFLAGS="-I/opt/pyca/cryptography/openssl/include/" LDFLAGS="-L/opt/pyca/cryptography/openssl/lib64/"'
           CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-manylinux2014:x86_64
           CIBW_MUSLLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-musllinux_1_2:x86_64
+          CIBW_SKIP: "cp3??t-*"
 
       - uses: actions/upload-artifact@v6
         with:
