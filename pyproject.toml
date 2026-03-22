@@ -1,5 +1,5 @@
 [project]
-name = "pkcs12"
+name = "pined-openssl"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -12,37 +12,14 @@ dependencies = [
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-
-
 [tool.setuptools]
 ext-modules = [
-  {name = "pkcs12.native", sources = ["src/pkcs12/native.c"], extra-link-args=["-lcrypto"]}
+  {name = "pined.openssl.native", sources = ["src/pined/openssl/native.cc"], extra-link-args=["-lcrypto"]}
 ]
 
-[tool.uv.workspace]
-members = [
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-    ".",
-]
+[tool.pyright]
+venv = ".venv"
+venvPath = "."
 
-[tool.uv.sources]
-pkcs12 = { workspace = true, editable = true }
-
-[dependency-groups]
-dev = [
-    "pkcs12",
-]
+[tool.ty.environment]
+root = ["."]

@@ -113,23 +113,15 @@ wheels = [
 ]
 
 [[package]]
-name = "pkcs12"
+name = "pined-openssl"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pkcs12" },
-]
-
 [package.metadata]
 requires-dist = [{ name = "cryptography", specifier = ">=46.0.5" }]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pkcs12", editable = "." }]
 
 [[package]]
 name = "pycparser"

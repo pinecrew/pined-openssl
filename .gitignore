@@ -16,3 +16,7 @@ wheels/
 
 # Local configuration
 .clangd
+.env
+
+# Macos shit
+.DS_Store
