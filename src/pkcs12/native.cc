@@ -1,3 +1,4 @@
+#include <memory>
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
@@ -5,6 +6,8 @@
 #include <openssl/pem.h>
 #include <openssl/pkcs12.h>
 #include <openssl/provider.h>
+
+#include <string>
 
 static PyObject *OpenSSLError = NULL;
 
@@ -22,6 +25,56 @@ static int native_module_exec(PyObject *m) {
   return 0;
 }
 
+namespace openssl {
+struct Provider {
+  OSSL_PROVIDER *provider;
+  Provider(const std::string &name)
+      : provider(OSSL_PROVIDER_load(NULL, name.c_str())) {}
+  ~Provider() { OSSL_PROVIDER_unload(provider); }
+};
+
+struct X509Certificate {
+  ::X509 *certificate;
+
+  X509Certificate(::X509 *certificate) : certificate(certificate) {}
+
+  ~X509Certificate() { ::X509_free(certificate); }
+};
+
+struct BIO {
+  ::BIO *bio;
+
+  BIO() : bio(::BIO_new(BIO_s_mem())) {}
+  BIO(const Py_buffer &buffer)
+      : bio(::BIO_new_mem_buf(buffer.buf, buffer.len)) {}
+  ~BIO() { ::BIO_free(bio); }
+};
+
+namespace pkcs12 {
+
+struct PKCS12 {
+  ::PKCS12 *pkcs12;
+  std::string password;
+
+  PKCS12(const openssl::BIO &data, const std::string &password)
+      : pkcs12(d2i_PKCS12_bio(data.bio, NULL)), password(password) {}
+
+  struct AuthSafes {
+    STACK_OF(PKCS7) * asafes;
+  };
+
+  struct SafeBag {
+    ::PKCS12_SAFEBAG *bag;
+
+    X509Certificate get_certificate() {
+      return X509Certificate(PKCS12_SAFEBAG_get1_cert(bag));
+    }
+  };
+};
+
+} // namespace pkcs12
+} // namespace openssl
+
 static PyObject *load_certificates(PyObject *self, PyObject *args) {
   Py_buffer pkcs12_data;
   const char *pass;
@@ -32,10 +85,13 @@ static PyObject *load_certificates(PyObject *self, PyObject *args) {
   BIO *pkcs12_bio = BIO_new_mem_buf(pkcs12_data.buf, pkcs12_data.len);
 
   X509 *cert = NULL;
+  STACK_OF(X509) *ca = NULL;
   STACK_OF(PKCS7) *asafes = NULL;
   PKCS12 *p12 = NULL;
   PyObject *ret = NULL;
   BIO *bio_mem = BIO_new(BIO_s_mem());
+
+  int passlen = -1;
 
   OSSL_PROVIDER *legacy_p = NULL;
   OSSL_PROVIDER *default_p = NULL;
@@ -74,7 +130,7 @@ static PyObject *load_certificates(PyObject *self, PyObject *args) {
     if (bagnid == NID_pkcs7_data) {
       bags = PKCS12_unpack_p7data(p7);
     } else if (bagnid == NID_pkcs7_encrypted) {
-      bags = PKCS12_unpack_p7encdata(p7, pass, -1);
+      bags = PKCS12_unpack_p7encdata(p7, pass, passlen);
     } else {
       continue;
     }
@@ -110,8 +166,9 @@ static PyObject *load_certificates(PyObject *self, PyObject *args) {
 
 err:
   sk_PKCS7_pop_free(asafes, PKCS7_free);
+  X509_free(cert);
+  OSSL_STACK_OF_X509_free(ca);
   BIO_free(bio_mem);
-  BIO_free(pkcs12_bio);
 
   OSSL_PROVIDER_unload(legacy_p);
   OSSL_PROVIDER_unload(default_p);
@@ -123,7 +180,7 @@ static PyMethodDef methods[] = {
     {NULL, NULL, 0, NULL} /* sentinel */
 };
 
-static PyModuleDef_Slot slots[] = {{Py_mod_exec, native_module_exec},
+static PyModuleDef_Slot slots[] = {{Py_mod_exec, (void *)native_module_exec},
                                    {0, NULL}};
 
 static struct PyModuleDef module = {
