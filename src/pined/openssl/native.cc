@@ -1,4 +1,5 @@
 #include <exception>
+#include <optional>
 #include <string>
 
 #define PY_SSIZE_T_CLEAN
@@ -75,15 +76,43 @@ struct SafeBag {
 
   SafeBag(::PKCS12_SAFEBAG *bag) : bag(bag) {}
 
-  X509Certificate get_certificate() {
+  std::optional<X509Certificate> get_certificate() {
     X509 *cert = PKCS12_SAFEBAG_get1_cert(bag);
     if (cert == NULL) {
-      throw NoCertificateException();
+      return std::nullopt;
     }
     return X509Certificate(cert);
   }
 
   ~SafeBag() {}
+};
+
+template <typename T, typename U> class StackIterator {
+  T &p;
+  int i;
+
+public:
+  using iterator_category = std::input_iterator_tag;
+  using value_type = U;
+  using difference_type = int;
+  using pointer = U *;
+  using reference = U &;
+  StackIterator(T &p, int i = 0) : p(p), i(i) {}
+  StackIterator &operator++() {
+    ++i;
+    return *this;
+  }
+  StackIterator operator++(int) {
+    auto retval = *this;
+    ++(*this);
+    return retval;
+  }
+  bool operator==(StackIterator other) const {
+    return &p == &(other.p) && i == other.i;
+  }
+  bool operator!=(StackIterator other) const { return !(*this == other); }
+  value_type operator*() const { return get_value(p, i); }
+  virtual value_type get_value(T &p, int i) const;
 };
 
 struct PKCS7_ {
@@ -112,33 +141,14 @@ struct PKCS7_ {
   }
   ~PKCS7_() { sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free); }
 
-  class iterator
-      : public std::iterator<std::input_iterator_tag, // iterator_category
-                             SafeBag,                 // value_type
-                             int,                     // difference_type
-                             SafeBag *,               // pointer
-                             SafeBag &                // reference
-                             > {
-    PKCS7_ &p;
-    int i;
-
+  class iterator : public StackIterator<PKCS7_, SafeBag> {
   public:
-    explicit iterator(PKCS7_ &p, int i = 0) : p(p), i(i) {}
-    iterator &operator++() {
-      ++i;
-      return *this;
-    }
-    iterator operator++(int) {
-      iterator retval = *this;
-      ++(*this);
-      return retval;
-    }
-    bool operator==(iterator other) const { return i == other.i; }
-    bool operator!=(iterator other) const { return !(*this == other); }
-    value_type operator*() const {
+    iterator(PKCS7_ &p, int i = 0) : StackIterator<PKCS7_, SafeBag>(p, i) {}
+    value_type get_value(openssl::pkcs12::PKCS7_ &p, int i) const override {
       return SafeBag(sk_PKCS12_SAFEBAG_value(p.bags, i));
     }
   };
+
   iterator begin() { return iterator(*this, 0); }
   iterator end() {
     return iterator(*this, bags == NULL ? 0 : sk_PKCS12_SAFEBAG_num(bags));
@@ -157,34 +167,15 @@ struct PKCS12 {
     sk_PKCS7_pop_free(asafes, PKCS7_free);
     PKCS12_free(pkcs12);
   }
-  class iterator
-      : public std::iterator<std::input_iterator_tag, // iterator_category
-                             PKCS7_,                  // value_type
-                             int,                     // difference_type
-                             PKCS7_ *,                // pointer
-                             PKCS7_ &                 // reference
-                             > {
-    PKCS12 &p;
-    int i;
 
+  class iterator : public StackIterator<PKCS12, PKCS7_> {
   public:
-    explicit iterator(PKCS12 &p, int i = 0) : p(p), i(i) {}
-    iterator &operator++() {
-      ++i;
-      return *this;
-    }
-    iterator operator++(int) {
-      iterator retval = *this;
-      ++(*this);
-      return retval;
-    }
-    bool operator==(iterator other) const { return i == other.i; }
-    bool operator!=(iterator other) const { return !(*this == other); }
-    value_type operator*() const {
-      auto pkcs7 = sk_PKCS7_value(p.asafes, i);
-      return PKCS7_(pkcs7, p.password);
+    iterator(PKCS12 &p, int i = 0) : StackIterator<PKCS12, PKCS7_>(p, i) {}
+    value_type get_value(openssl::pkcs12::PKCS12 &p, int i) const override {
+      return PKCS7_(sk_PKCS7_value(p.asafes, i), p.password);
     }
   };
+
   iterator begin() { return iterator(*this, 0); }
   iterator end() { return iterator(*this, sk_PKCS7_num(asafes)); }
 };
@@ -212,9 +203,9 @@ static PyObject *extract_certificates(PyObject *self, PyObject *args) {
   try {
     for (auto pkcs7 : pkcs12) {
       for (auto bag : pkcs7) {
-        try {
-          certificates_bio << bag.get_certificate();
-        } catch (openssl::NoCertificateException &_) {
+        auto certificate = bag.get_certificate();
+        if (certificate) {
+          certificates_bio << *certificate;
         }
       }
     }
