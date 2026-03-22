@@ -22,12 +22,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@main
-        if: runner.os == 'macOS'
 
-      - name: Set up OpenSSL
-        run: brew install openssl
+      - name: Set up compiler flags
+        run: |
+            echo 'CPPFLAGS="-I/opt/homebrew/include/"' >> $GITHUB_ENV
+            echo 'LDFLAGS="-L/opt/homebrew/lib/"' >> $GITHUB_ENV
+        shell: bash
         if: runner.os == 'macOS'
 
       - name: Build wheels
