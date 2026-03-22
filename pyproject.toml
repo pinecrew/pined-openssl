@@ -12,10 +12,10 @@ dependencies = [
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-ext-modules = [
-    {name = "pined.openssl.native", sources = ["src/pined/openssl/native.cc"], extra-link-args=["-Wl,-Bstatic", "-lcrypto"]}
-]
+[[tool.setuptools.ext-modules]]
+name = "pined.openssl.native"
+sources = ["src/pined/openssl/native.cc"]
+extra-link-args=["-static", "-lcrypto"]
 
 [tool.pyright]
 venv = ".venv"
