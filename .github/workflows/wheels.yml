@@ -33,8 +33,14 @@ jobs:
               echo 'CPPFLAGS="-I/opt/pyca/cryptography/openssl/include/"' >> $GITHUB_ENV
               echo 'LDFLAGS="-L/opt/pyca/cryptography/openssl/lib64/"' >> $GITHUB_ENV
             fi
-            echo "CPPFLAGS: ${{ env.CPPFLAGS }}"
-            echo "LDFLAGS: ${{ env.LDFLAGS }}"
+            echo "CPPFLAGS: $CPPFLAGS"
+            echo "LDFLAGS: $LDFLAGS"
+        shell: bash
+
+      - name: Check env
+        run: |
+            echo "CPPFLAGS: $CPPFLAGS"
+            echo "LDFLAGS: $LDFLAGS"
         shell: bash
 
       - name: Build wheels
