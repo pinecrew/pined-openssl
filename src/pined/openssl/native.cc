@@ -1,6 +1,8 @@
 #include <exception>
+#include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -30,6 +32,7 @@ namespace openssl {
 
 class NoCertificateException : std::exception {};
 class InvalidPassword : std::exception {};
+class InvalidPKCS12File : std::exception {};
 struct Provider {
   OSSL_PROVIDER *provider;
   Provider(const std::string &name)
@@ -78,97 +81,127 @@ struct SafeBag {
   ~SafeBag() {}
 };
 
-template <typename T, typename U> class StackIterator {
-  T &p;
-  int i;
+struct PKCS12 {
 
-public:
-  using iterator_category = std::input_iterator_tag;
-  using value_type = U;
-  using difference_type = int;
-  using pointer = U *;
-  using reference = U &;
-  StackIterator(T &p, int i = 0) : p(p), i(i) {}
-  StackIterator &operator++() {
-    ++i;
-    return *this;
-  }
-  StackIterator operator++(int) {
-    auto retval = *this;
-    ++(*this);
-    return retval;
-  }
-  bool operator==(StackIterator other) const {
-    return &p == &(other.p) && i == other.i;
-  }
-  bool operator!=(StackIterator other) const { return !(*this == other); }
-  value_type operator*() const { return get_value(p, i); }
-  virtual value_type get_value(T &p, int i) const;
-};
+  struct _PKCS12 {
+    struct _AuthenticatedSafes {
+      struct _SafeContents {
+        std::unique_ptr<STACK_OF(PKCS12_SAFEBAG),
+                        decltype([](STACK_OF(PKCS12_SAFEBAG) * p) {
+                          sk_PKCS12_SAFEBAG_pop_free(p, PKCS12_SAFEBAG_free);
+                        })>
+            safecontents;
+        _SafeContents(STACK_OF(PKCS12_SAFEBAG) * p) : safecontents(p) {}
+      };
+      static std::vector<_SafeContents>
+      get_safe_contents_stacks(STACK_OF(PKCS7) * authenticated_safes,
+                               const std::string &password) {
+        if (authenticated_safes == NULL) {
+          throw InvalidPKCS12File();
+        }
+        std::vector<_SafeContents> result;
 
-struct PKCS7_ {
-  ::PKCS7 *pkcs7;
-  std::string password;
-  STACK_OF(PKCS12_SAFEBAG) * bags;
-
-  PKCS7_(::PKCS7 *pkcs7, const std::string &password)
-      : pkcs7(pkcs7), password(password), bags(NULL) {
-    int bagnid = OBJ_obj2nid(pkcs7->type);
-    switch (bagnid) {
-    case NID_pkcs7_data:
-      bags = PKCS12_unpack_p7data(pkcs7);
-      break;
-    case NID_pkcs7_encrypted: {
-      bags =
-          PKCS12_unpack_p7encdata(pkcs7, password.c_str(), password.length());
-      if (bags == NULL) {
-        throw InvalidPassword();
+        for (int i = 0; i < sk_PKCS7_num(authenticated_safes); ++i) {
+          ::PKCS7 *pkcs7 = sk_PKCS7_value(authenticated_safes, i);
+          int bagnid = OBJ_obj2nid(pkcs7->type);
+          STACK_OF(PKCS12_SAFEBAG) *bags = NULL;
+          switch (bagnid) {
+          case NID_pkcs7_data:
+            bags = PKCS12_unpack_p7data(pkcs7);
+            break;
+          case NID_pkcs7_encrypted: {
+            bags = PKCS12_unpack_p7encdata(pkcs7, password.c_str(),
+                                           password.length());
+            if (bags == NULL) {
+              throw InvalidPassword();
+            }
+            break;
+          }
+          default:
+            break;
+          }
+          result.push_back(bags);
+        }
+        return result;
       }
-      break;
-    }
-    default:
-      break;
-    }
-  }
-  ~PKCS7_() { sk_PKCS12_SAFEBAG_pop_free(bags, PKCS12_SAFEBAG_free); }
 
-  class iterator : public StackIterator<PKCS7_, SafeBag> {
-  public:
-    iterator(PKCS7_ &p, int i = 0) : StackIterator<PKCS7_, SafeBag>(p, i) {}
-    value_type get_value(openssl::PKCS7_ &p, int i) const override {
-      return SafeBag(sk_PKCS12_SAFEBAG_value(p.bags, i));
+      std::unique_ptr<STACK_OF(PKCS7), decltype([](STACK_OF(PKCS7) * p) {
+                        sk_PKCS7_pop_free(p, PKCS7_free);
+                      })>
+          authenticated_safes;
+      std::vector<_SafeContents> safe_contents_stacks;
+
+      _AuthenticatedSafes(STACK_OF(PKCS7) * authenticated_safes,
+                          const std::string &password)
+          : authenticated_safes(authenticated_safes),
+            safe_contents_stacks(
+                get_safe_contents_stacks(authenticated_safes, password)) {}
+    };
+
+    static _AuthenticatedSafes
+    get_authenticated_safes(::PKCS12 *pkcs12, const std::string &password) {
+      if (pkcs12 == NULL) {
+        throw InvalidPKCS12File();
+      }
+      return _AuthenticatedSafes(PKCS12_unpack_authsafes(pkcs12), password);
     }
+
+    std::unique_ptr<::PKCS12, decltype([](::PKCS12 *p) { PKCS12_free(p); })>
+        pkcs12;
+    _AuthenticatedSafes authenticated_safes;
+
+    _PKCS12(::PKCS12 *pkcs12, const std::string &password)
+        : pkcs12(pkcs12),
+          authenticated_safes(get_authenticated_safes(pkcs12, password)) {}
   };
 
-  iterator begin() { return iterator(*this, 0); }
-  iterator end() {
-    return iterator(*this, bags == NULL ? 0 : sk_PKCS12_SAFEBAG_num(bags));
-  }
-};
-
-struct PKCS12 {
-  ::PKCS12 *pkcs12;
-  STACK_OF(PKCS7) * asafes;
-  std::string password;
+  _PKCS12 pkcs12;
 
   PKCS12(const openssl::BIO &data, const std::string &password)
-      : pkcs12(d2i_PKCS12_bio(data.bio, NULL)),
-        asafes(PKCS12_unpack_authsafes(pkcs12)), password(password) {}
-  ~PKCS12() {
-    sk_PKCS7_pop_free(asafes, PKCS7_free);
-    PKCS12_free(pkcs12);
-  }
+      : pkcs12(d2i_PKCS12_bio(data.bio, NULL), password) {}
 
-  class iterator : public StackIterator<PKCS12, PKCS7_> {
+  class iterator {
+    using outer_iterator =
+        std::vector<_PKCS12::_AuthenticatedSafes::_SafeContents>::iterator;
+
+    outer_iterator outer;
+    int inner;
+
   public:
-    iterator(PKCS12 &p, int i = 0) : StackIterator<PKCS12, PKCS7_>(p, i) {}
-    value_type get_value(PKCS12 &p, int i) const override {
-      return PKCS7_(sk_PKCS7_value(p.asafes, i), p.password);
+    using iterator_category = std::input_iterator_tag;
+    using value_type = SafeBag;
+    using difference_type = int;
+    using pointer = SafeBag *;
+    using reference = SafeBag &;
+    iterator(outer_iterator outer, int inner = 0)
+        : outer(outer), inner(inner) {}
+    iterator &operator++() {
+      ++inner;
+      if (inner >= sk_PKCS12_SAFEBAG_num(outer->safecontents.get())) {
+        ++outer;
+        inner = 0;
+      }
+      return *this;
+    }
+    iterator operator++(int) {
+      auto retval = *this;
+      ++(*this);
+      return retval;
+    }
+    bool operator==(iterator other) const {
+      return outer == other.outer and inner == other.inner;
+    }
+    bool operator!=(iterator other) const { return !(*this == other); }
+    value_type operator*() const {
+      return SafeBag(sk_PKCS12_SAFEBAG_value(outer->safecontents.get(), inner));
     }
   };
-
-  iterator begin() { return iterator(*this, 0); }
-  iterator end() { return iterator(*this, sk_PKCS7_num(asafes)); }
+  iterator begin() {
+    return iterator(pkcs12.authenticated_safes.safe_contents_stacks.begin());
+  }
+  iterator end() {
+    return iterator(pkcs12.authenticated_safes.safe_contents_stacks.end());
+  }
 };
 
 } // namespace openssl
@@ -194,26 +227,27 @@ static PyObject *extract_certificates(PyObject *self, PyObject *args) {
   if (!PyArg_ParseTuple(args, "y*s", &pkcs12_bytes, &password))
     return NULL;
 
-  auto default_provider = openssl::Provider("default");
-  auto legacy_provider = openssl::Provider("legacy");
-  auto pkcs12_bio = openssl::BIO(pkcs12_bytes);
-  auto pkcs12 = openssl::PKCS12(pkcs12_bio, password);
-  auto output = openssl::BIO();
-
   try {
-    for (auto pkcs7 : pkcs12) {
-      for (auto bag : pkcs7) {
-        if (auto certificate = bag.get_certificate()) {
-          output << *certificate;
-        }
+    auto default_provider = openssl::Provider("default");
+    auto legacy_provider = openssl::Provider("legacy");
+    auto pkcs12_bio = openssl::BIO(pkcs12_bytes);
+    auto pkcs12 = openssl::PKCS12(pkcs12_bio, password);
+    auto output = openssl::BIO();
+
+    for (auto bag : pkcs12) {
+      if (auto certificate = bag.get_certificate()) {
+        output << *certificate;
       }
     }
+
+    return python::make_bytes(output);
+  } catch (openssl::InvalidPKCS12File &_) {
+    PyErr_SetString(OpenSSLError, "Invalid file");
+    return NULL;
   } catch (openssl::InvalidPassword &_) {
     PyErr_SetString(OpenSSLError, "Invalid password");
     return NULL;
   }
-
-  return python::make_bytes(output);
 }
 }
 

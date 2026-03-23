@@ -18,7 +18,7 @@ include-package-data = false
 [[tool.setuptools.ext-modules]]
 name = "pined.openssl.native"
 sources = ["src/pined/openssl/native.cc"]
-extra-compile-args=["-std=c++17"]
+extra-compile-args=["-std=c++20"]
 extra-link-args=["-lcrypto"]
 
 [tool.pyright]
