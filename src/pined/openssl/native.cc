@@ -83,86 +83,68 @@ struct SafeBag {
 
 struct PKCS12 {
 
-  struct _PKCS12 {
-    struct _AuthenticatedSafes {
-      struct _SafeContents {
-        std::unique_ptr<STACK_OF(PKCS12_SAFEBAG),
-                        decltype([](STACK_OF(PKCS12_SAFEBAG) * p) {
-                          sk_PKCS12_SAFEBAG_pop_free(p, PKCS12_SAFEBAG_free);
-                        })>
-            safecontents;
-        _SafeContents(STACK_OF(PKCS12_SAFEBAG) * p) : safecontents(p) {}
-      };
-      static std::vector<_SafeContents>
-      get_safe_contents_stacks(STACK_OF(PKCS7) * authenticated_safes,
-                               const std::string &password) {
-        if (authenticated_safes == NULL) {
-          throw InvalidPKCS12File();
-        }
-        std::vector<_SafeContents> result;
-
-        for (int i = 0; i < sk_PKCS7_num(authenticated_safes); ++i) {
-          ::PKCS7 *pkcs7 = sk_PKCS7_value(authenticated_safes, i);
-          int bagnid = OBJ_obj2nid(pkcs7->type);
-          STACK_OF(PKCS12_SAFEBAG) *bags = NULL;
-          switch (bagnid) {
-          case NID_pkcs7_data:
-            bags = PKCS12_unpack_p7data(pkcs7);
-            break;
-          case NID_pkcs7_encrypted: {
-            bags = PKCS12_unpack_p7encdata(pkcs7, password.c_str(),
-                                           password.length());
-            if (bags == NULL) {
-              throw InvalidPassword();
-            }
-            break;
-          }
-          default:
-            break;
-          }
-          result.push_back(bags);
-        }
-        return result;
-      }
-
+  using _PKCS12 =
+      std::unique_ptr<::PKCS12, decltype([](::PKCS12 *p) { PKCS12_free(p); })>;
+  using _AuthenticatedSafes =
       std::unique_ptr<STACK_OF(PKCS7), decltype([](STACK_OF(PKCS7) * p) {
                         sk_PKCS7_pop_free(p, PKCS7_free);
-                      })>
-          authenticated_safes;
-      std::vector<_SafeContents> safe_contents_stacks;
-
-      _AuthenticatedSafes(STACK_OF(PKCS7) * authenticated_safes,
-                          const std::string &password)
-          : authenticated_safes(authenticated_safes),
-            safe_contents_stacks(
-                get_safe_contents_stacks(authenticated_safes, password)) {}
-    };
-
-    static _AuthenticatedSafes
-    get_authenticated_safes(::PKCS12 *pkcs12, const std::string &password) {
-      if (pkcs12 == NULL) {
-        throw InvalidPKCS12File();
-      }
-      return _AuthenticatedSafes(PKCS12_unpack_authsafes(pkcs12), password);
-    }
-
-    std::unique_ptr<::PKCS12, decltype([](::PKCS12 *p) { PKCS12_free(p); })>
-        pkcs12;
-    _AuthenticatedSafes authenticated_safes;
-
-    _PKCS12(::PKCS12 *pkcs12, const std::string &password)
-        : pkcs12(pkcs12),
-          authenticated_safes(get_authenticated_safes(pkcs12, password)) {}
-  };
+                      })>;
+  using _SafeContents =
+      std::unique_ptr<STACK_OF(PKCS12_SAFEBAG),
+                      decltype([](STACK_OF(PKCS12_SAFEBAG) * p) {
+                        sk_PKCS12_SAFEBAG_pop_free(p, PKCS12_SAFEBAG_free);
+                      })>;
 
   _PKCS12 pkcs12;
+  _AuthenticatedSafes authenticated_safes;
+  std::vector<_SafeContents> safe_contents_stacks;
 
   PKCS12(const openssl::BIO &data, const std::string &password)
-      : pkcs12(d2i_PKCS12_bio(data.bio, NULL), password) {}
+      : pkcs12(d2i_PKCS12_bio(data.bio, NULL)),
+        authenticated_safes(get_authenticated_safes(pkcs12.get())),
+        safe_contents_stacks(
+            get_safe_contents_stacks(authenticated_safes.get(), password)) {}
+
+  static STACK_OF(PKCS7) * get_authenticated_safes(::PKCS12 *pkcs12) {
+    if (pkcs12 == NULL) {
+      throw InvalidPKCS12File();
+    }
+    return PKCS12_unpack_authsafes(pkcs12);
+  }
+  static std::vector<_SafeContents>
+  get_safe_contents_stacks(STACK_OF(PKCS7) * authenticated_safes,
+                           const std::string &password) {
+    if (authenticated_safes == NULL) {
+      throw InvalidPKCS12File();
+    }
+    std::vector<_SafeContents> result;
+
+    for (int i = 0; i < sk_PKCS7_num(authenticated_safes); ++i) {
+      ::PKCS7 *pkcs7 = sk_PKCS7_value(authenticated_safes, i);
+      int bagnid = OBJ_obj2nid(pkcs7->type);
+      STACK_OF(PKCS12_SAFEBAG) *bags = NULL;
+      switch (bagnid) {
+      case NID_pkcs7_data:
+        bags = PKCS12_unpack_p7data(pkcs7);
+        break;
+      case NID_pkcs7_encrypted: {
+        bags =
+            PKCS12_unpack_p7encdata(pkcs7, password.c_str(), password.length());
+        if (bags == NULL) {
+          throw InvalidPassword();
+        }
+        break;
+      }
+      default:
+        break;
+      }
+      result.emplace_back(bags);
+    }
+    return result;
+  }
 
   class iterator {
-    using outer_iterator =
-        std::vector<_PKCS12::_AuthenticatedSafes::_SafeContents>::iterator;
+    using outer_iterator = std::vector<_SafeContents>::iterator;
 
     outer_iterator outer;
     int inner;
@@ -177,7 +159,7 @@ struct PKCS12 {
         : outer(outer), inner(inner) {}
     iterator &operator++() {
       ++inner;
-      if (inner >= sk_PKCS12_SAFEBAG_num(outer->safecontents.get())) {
+      if (inner >= sk_PKCS12_SAFEBAG_num(outer->get())) {
         ++outer;
         inner = 0;
       }
@@ -193,15 +175,11 @@ struct PKCS12 {
     }
     bool operator!=(iterator other) const { return !(*this == other); }
     value_type operator*() const {
-      return SafeBag(sk_PKCS12_SAFEBAG_value(outer->safecontents.get(), inner));
+      return SafeBag(sk_PKCS12_SAFEBAG_value(outer->get(), inner));
     }
   };
-  iterator begin() {
-    return iterator(pkcs12.authenticated_safes.safe_contents_stacks.begin());
-  }
-  iterator end() {
-    return iterator(pkcs12.authenticated_safes.safe_contents_stacks.end());
-  }
+  iterator begin() { return iterator(safe_contents_stacks.begin()); }
+  iterator end() { return iterator(safe_contents_stacks.end()); }
 };
 
 } // namespace openssl
