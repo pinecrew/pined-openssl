@@ -29,6 +29,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
         env:
+          CIBW_ENVIRONMENT_LINUX: 'OPENSSL_ROOT_DIR=/opt/pyca/cryptography/openssl'
           CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-manylinux2014:x86_64
           CIBW_MUSLLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-musllinux_1_2:x86_64
           CIBW_SKIP: "cp3??t-*"
