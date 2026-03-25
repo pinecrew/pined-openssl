@@ -26,9 +26,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: dawidd6/action-download-artifact@8a338493df3d275e4a7a63bcff3b8fe97e51a927 # v19
+        with:
+          repo: pyca/infra
+          workflow: build-macos-openssl.yml
+          branch: main
+          workflow_conclusion: success
+          name: openssl-macos-arm64
+          path: "../openssl-macos-arm64/"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
         env:
+          CIBW_ENVIRONMENT_MACOS: 'OPENSSL_ROOT_DIR=../openssl-macos-arm64/'
           CIBW_ENVIRONMENT_LINUX: 'OPENSSL_ROOT_DIR=/opt/pyca/cryptography/openssl'
           CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-manylinux2014:x86_64
           CIBW_MUSLLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-musllinux_1_2:x86_64
