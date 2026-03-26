@@ -4,35 +4,26 @@
 #include <string>
 #include <vector>
 
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
+#include <pybind11/pybind11.h>
 
 #include <openssl/bio.h>
 #include <openssl/pem.h>
 #include <openssl/pkcs12.h>
 #include <openssl/provider.h>
 
-static PyObject *OpenSSLError = NULL;
-
-static int native_module_exec(PyObject *m) {
-  if (OpenSSLError != NULL) {
-    PyErr_SetString(PyExc_ImportError,
-                    "cannot initialize spam module more than once");
-    return -1;
-  }
-  OpenSSLError = PyErr_NewException("pkcs12.OpenSSLError", NULL, NULL);
-  if (PyModule_AddObjectRef(m, "OpenSSLError", OpenSSLError) < 0) {
-    return -1;
-  }
-
-  return 0;
-}
+namespace py = pybind11;
 
 namespace openssl {
 
-class NoCertificateException : std::exception {};
-class InvalidPassword : std::exception {};
-class InvalidPKCS12File : std::exception {};
+class InvalidPassword : public std::invalid_argument {
+public:
+  InvalidPassword() : std::invalid_argument("Invalid password") {}
+};
+class InvalidPKCS12File : public std::invalid_argument {
+public:
+  InvalidPKCS12File() : std::invalid_argument("Invalid password") {}
+};
+
 struct Provider {
   OSSL_PROVIDER *provider;
   Provider(const std::string &name)
@@ -52,9 +43,24 @@ struct BIO {
   ::BIO *bio;
 
   BIO() : bio(::BIO_new(::BIO_s_mem())) {}
-  BIO(const Py_buffer &buffer)
-      : bio(::BIO_new_mem_buf(buffer.buf, buffer.len)) {}
+  BIO(const py::bytes &buffer) : bio(nullptr) {
+    char *ptr;
+    ssize_t len;
+    PYBIND11_BYTES_AS_STRING_AND_SIZE(buffer.ptr(), &ptr, &len);
+    bio = ::BIO_new_mem_buf(ptr, len);
+  }
   ~BIO() { ::BIO_free(bio); }
+
+  char *data() {
+    char *result = NULL;
+    ssize_t len = BIO_get_mem_data(bio, &result);
+    return result;
+  }
+
+  size_t size() {
+    char *result = NULL;
+    return BIO_get_mem_data(bio, &result);
+  }
 
   BIO &operator<<(const X509Certificate &certificate) {
     int ret = PEM_write_bio_X509(bio, certificate.certificate);
@@ -184,65 +190,26 @@ struct PKCS12 {
 
 } // namespace openssl
 
-namespace python {
-PyObject *make_bytes(const openssl::BIO &bio) {
-  char *data = NULL;
-  long len = BIO_get_mem_data(bio.bio, &data);
-  // if (len <= 0) {
-  //   PyErr_SetString(OpenSSLError, "Failed to export certificates data");
-  //   goto err;
-  // }
+py::bytes extract_certificates(py::bytes pkcs12_data, std::string password) {
+  auto default_provider = openssl::Provider("default");
+  auto legacy_provider = openssl::Provider("legacy");
+  auto pkcs12_bio = openssl::BIO(pkcs12_data);
+  auto pkcs12 = openssl::PKCS12(pkcs12_bio, password);
+  auto output = openssl::BIO();
 
-  return PyBytes_FromStringAndSize(data, len);
-}
-} // namespace python
-
-extern "C" {
-static PyObject *extract_certificates(PyObject *self, PyObject *args) {
-  Py_buffer pkcs12_bytes;
-  const char *password;
-
-  if (!PyArg_ParseTuple(args, "y*s", &pkcs12_bytes, &password))
-    return NULL;
-
-  try {
-    auto default_provider = openssl::Provider("default");
-    auto legacy_provider = openssl::Provider("legacy");
-    auto pkcs12_bio = openssl::BIO(pkcs12_bytes);
-    auto pkcs12 = openssl::PKCS12(pkcs12_bio, password);
-    auto output = openssl::BIO();
-
-    for (auto bag : pkcs12) {
-      if (auto certificate = bag.get_certificate()) {
-        output << *certificate;
-      }
+  for (auto bag : pkcs12) {
+    if (auto certificate = bag.get_certificate()) {
+      output << *certificate;
     }
-
-    return python::make_bytes(output);
-  } catch (openssl::InvalidPKCS12File &_) {
-    PyErr_SetString(OpenSSLError, "Invalid file");
-    return NULL;
-  } catch (openssl::InvalidPassword &_) {
-    PyErr_SetString(OpenSSLError, "Invalid password");
-    return NULL;
   }
+  return py::bytes(output.data(), output.size());
 }
+
+PYBIND11_MODULE(native, m, py::mod_gil_not_used()) {
+  py::register_local_exception<openssl::InvalidPassword>(m, "InvalidPassword", PyExc_ValueError);
+  py::register_local_exception<openssl::InvalidPKCS12File>(m, "InvalidPKCS12File", PyExc_ValueError);
+
+  m.doc() = "internal native openssl wrapper";
+  m.def("extract_certificates", &extract_certificates,
+        "Extract certificates from PKCS12 bundle");
 }
-
-static PyMethodDef methods[] = {
-    {"extract_certificates", extract_certificates, METH_VARARGS, NULL},
-    {NULL, NULL, 0, NULL} /* sentinel */
-};
-
-static PyModuleDef_Slot slots[] = {{Py_mod_exec, (void *)native_module_exec},
-                                   {0, NULL}};
-
-static struct PyModuleDef module = {
-    .m_base = PyModuleDef_HEAD_INIT,
-    .m_name = "native",
-    .m_size = 0,
-    .m_methods = methods,
-    .m_slots = slots,
-};
-
-PyMODINIT_FUNC PyInit_native(void) { return PyModuleDef_Init(&module); }
