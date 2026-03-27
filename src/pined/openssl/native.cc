@@ -21,7 +21,7 @@ public:
 };
 class InvalidPKCS12File : public std::invalid_argument {
 public:
-  InvalidPKCS12File() : std::invalid_argument("Invalid password") {}
+  InvalidPKCS12File() : std::invalid_argument("Invalid PKCS12 data") {}
 };
 
 struct Provider {
