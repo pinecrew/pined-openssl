@@ -205,7 +205,7 @@ py::bytes extract_certificates(py::bytes pkcs12_data, std::string password) {
   return py::bytes(output.data(), output.size());
 }
 
-PYBIND11_MODULE(native, m, py::mod_gil_not_used()) {
+PYBIND11_MODULE(_openssl, m, py::mod_gil_not_used()) {
   py::register_local_exception<openssl::InvalidPassword>(m, "InvalidPassword", PyExc_ValueError);
   py::register_local_exception<openssl::InvalidPKCS12File>(m, "InvalidPKCS12File", PyExc_ValueError);
 
