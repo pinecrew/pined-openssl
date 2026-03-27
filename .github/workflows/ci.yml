@@ -36,6 +36,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: 'OPENSSL_ROOT_DIR=/opt/pyca/cryptography/openssl'
           CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-manylinux2014:x86_64
           CIBW_MUSLLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-musllinux_1_2:x86_64
+          CIBW_TEST_REQUIRES: pytest
           CIBW_TEST_COMMAND: pytest {project}/tests
           CIBW_SKIP: "cp3??t-*"
 
