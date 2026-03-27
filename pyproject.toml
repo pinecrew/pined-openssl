@@ -23,3 +23,8 @@ venvPath = "."
 
 [tool.ty.environment]
 root = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
