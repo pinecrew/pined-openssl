@@ -1,6 +1,6 @@
 [project]
 name = "pined-openssl"
-version = "0.2.1"
+version = "0.2.2.dev1"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -20,11 +20,15 @@ wheel.install-dir = "pined/openssl"
 [tool.pyright]
 venv = ".venv"
 venvPath = "."
+reportMissingModuleSource = false
+reportUnusedCallResult = false
 
 [tool.ty.environment]
 root = ["."]
 
 [dependency-groups]
 dev = [
+    "poethepoet>=0.42.1",
     "pytest>=9.0.2",
+    "ruff>=0.15.8",
 ]
