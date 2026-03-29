@@ -38,17 +38,12 @@ struct X509Certificate {
   ~X509Certificate() { ::X509_free(certificate); }
 };
 
-struct BIO {
+struct MemoryBuffer {
   ::BIO *bio;
 
-  BIO() : bio(::BIO_new(::BIO_s_mem())) {}
-  BIO(const py::bytes &buffer) : bio(nullptr) {
-    char *ptr;
-    ssize_t len;
-    PYBIND11_BYTES_AS_STRING_AND_SIZE(buffer.ptr(), &ptr, &len);
-    bio = ::BIO_new_mem_buf(ptr, len);
-  }
-  ~BIO() { ::BIO_free(bio); }
+  MemoryBuffer() : bio(::BIO_new(::BIO_s_mem())) {}
+  MemoryBuffer(const char *ptr, int len) : bio(::BIO_new_mem_buf(ptr, len)) {}
+  ~MemoryBuffer() { ::BIO_free(bio); }
 
   char *data() {
     char *result = NULL;
@@ -61,7 +56,7 @@ struct BIO {
     return BIO_get_mem_data(bio, &result);
   }
 
-  BIO &operator<<(const X509Certificate &certificate) {
+  MemoryBuffer &operator<<(const X509Certificate &certificate) {
     int ret = PEM_write_bio_X509(bio, certificate.certificate);
     return *this;
   }
@@ -99,11 +94,11 @@ struct PKCS12 {
   _AuthenticatedSafes authenticated_safes;
   std::vector<_SafeContents> safe_contents_stacks;
 
-  PKCS12(const openssl::BIO &data, const std::string &password)
+  PKCS12(const openssl::MemoryBuffer &data, const std::string &password)
       : pkcs12(get_pkcs12(data, password)), authenticated_safes(get_authenticated_safes(pkcs12.get())),
         safe_contents_stacks(get_safe_contents_stacks(authenticated_safes.get(), password)) {}
 
-  static _PKCS12 get_pkcs12(const openssl::BIO &data, const std::string &password) {
+  static _PKCS12 get_pkcs12(const openssl::MemoryBuffer &data, const std::string &password) {
     ::PKCS12 *p12 = d2i_PKCS12_bio(data.bio, NULL);
     if (p12 == NULL) {
       throw InvalidPKCS12File();
@@ -190,9 +185,14 @@ struct PKCS12 {
 py::bytes extract_certificates(py::bytes pkcs12_data, std::string password) {
   auto default_provider = openssl::Provider("default");
   auto legacy_provider = openssl::Provider("legacy");
-  auto pkcs12_bio = openssl::BIO(pkcs12_data);
+
+  char *ptr;
+  ssize_t len;
+  PYBIND11_BYTES_AS_STRING_AND_SIZE(pkcs12_data.ptr(), &ptr, &len);
+  auto pkcs12_bio = openssl::MemoryBuffer(ptr, len);
+
   auto pkcs12 = openssl::PKCS12(pkcs12_bio, password);
-  auto output = openssl::BIO();
+  auto output = openssl::MemoryBuffer();
 
   for (auto bag : pkcs12) {
     if (auto certificate = bag.get_certificate()) {
