@@ -1,0 +1,56 @@
+name: macOS OpenSSL
+on:
+  # schedule:
+    # Run once a week on Fridays
+    # - cron: "0 0 * * FRI"
+  pull_request:
+    paths:
+      - '.github/workflows/build-openssl-macos.yml'
+      - 'ci/openssl.env'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-openssl-macos.yml'
+      - 'cryptography-linux/openssl.env'
+
+jobs:
+  build:
+    runs-on: macos-15
+    name: "Build OpenSSL for macOS"
+    steps:
+      - name: Setup env variables
+        run: |
+          cat .env | grep -v '^#' | grep -v '^$' >> $GITHUB_ENV
+        shell: bash
+      - uses: actions/checkout@v6.0.1
+        with:
+          persist-credentials: false
+      - name: Download OpenSSL
+        run: |
+          curl -Lo openssl.tar.gz https://github.com/openssl/openssl/releases/download/$OPENSSL_VERSION/$OPENSSL_VERSION.tar.gz
+          shasum -a 256 -c <<< "$OPENSSL_SHA256 *openssl.tar.gz"
+      - name: Extract OpenSSL
+        run: |
+          tar zxf openssl.tar.gz
+      - name: Build OpenSSL
+        run: |
+          set -x
+          mkdir artifact
+          BASEDIR=$(pwd)
+          cd openssl*
+          perl ./Configure \
+              --prefix="${BASEDIR}/artifact" \
+              --openssldir="/opt/homebrew/etc/openssl@3" \
+              darwin64-arm64-cc \
+              $OPENSSL_BUILD_FLAGS
+          make -j$(sysctl -n hw.logicalcpu)
+          make install_sw
+        env:
+          CFLAGS: "-mmacosx-version-min=11.0"
+
+      - uses: actions/upload-artifact@v7.0.0
+        with:
+          name: "openssl-macos-${{ matrix.ARCH.ARTIFACT_NAME }}"
+          path: artifact/
+

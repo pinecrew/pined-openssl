@@ -9,7 +9,6 @@ curl -#LO "${OPENSSL_URL}/${OPENSSL_VERSION}/${OPENSSL_VERSION}.tar.gz"
 echo "${OPENSSL_SHA256}  ${OPENSSL_VERSION}.tar.gz" | sha256sum -c -
 tar zxf ${OPENSSL_VERSION}.tar.gz
 pushd ${OPENSSL_VERSION}
-BUILD_FLAGS="no-ssl3 no-ssl3-method no-zlib no-shared no-module no-comp no-dynamic-engine no-apps no-docs no-sm2-precomp no-atexit enable-ec_nistp_64_gcc_128"
 ./config $BUILD_FLAGS --prefix=${INSTALL_LOCATION} --openssldir=${INSTALL_LOCATION}
 make depend
 make -j4
