@@ -65,10 +65,10 @@ jobs:
         with:
           context: ci
           build-args: |
-            PYPA_IMAGE="${{ matrix.IMAGE }}"
-            OPENSSL_VERSION="${OPENSSL_VERSION}"
-            OPENSSL_SHA256="${OPENSSL_SHA256}""
-            BUILD_FLAGS="${BUILD_FLAGS}"
+            PYPA_IMAGE=${{ matrix.IMAGE }}
+            OPENSSL_VERSION=${OPENSSL_VERSION}
+            OPENSSL_SHA256=${OPENSSL_SHA256}
+            BUILD_FLAGS=${BUILD_FLAGS}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
