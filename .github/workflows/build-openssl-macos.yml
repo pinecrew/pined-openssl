@@ -30,7 +30,7 @@ jobs:
       - name: Download OpenSSL
         run: |
           curl -Lo openssl.tar.gz https://github.com/openssl/openssl/releases/download/$OPENSSL_VERSION/$OPENSSL_VERSION.tar.gz
-          shasum -a 256 -c <<< "$OPENSSL_SHA256 *openssl.tar.gz"
+          shasum -a 256 -c <<< "$OPENSSL_SHA256 openssl.tar.gz"
       - name: Extract OpenSSL
         run: |
           tar zxf openssl.tar.gz
@@ -54,4 +54,3 @@ jobs:
         with:
           name: "openssl-macos-${{ matrix.ARCH.ARTIFACT_NAME }}"
           path: artifact/
-
