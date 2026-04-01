@@ -5,9 +5,9 @@ INSTALL_LOCATION=$1
 
 OPENSSL_URL="https://github.com/openssl/openssl/releases/download"
 
-curl -#LO "${OPENSSL_URL}/${OPENSSL_VERSION}/${OPENSSL_VERSION}.tar.gz"
-echo "${OPENSSL_SHA256} ${OPENSSL_VERSION}.tar.gz" | sha256sum -c -
-tar zxf ${OPENSSL_VERSION}.tar.gz
+curl -Lo openssl.tar.gz "${OPENSSL_URL}/${OPENSSL_VERSION}/${OPENSSL_VERSION}.tar.gz"
+echo "${OPENSSL_SHA256}  openssl.tar.gz" | shasum -a 256 -c
+tar zxf openssl.tar.gz
 pushd ${OPENSSL_VERSION}
 ./config ${BUILD_FLAGS} --prefix=${INSTALL_LOCATION} --openssldir=${INSTALL_LOCATION}
 make depend
