@@ -9,13 +9,16 @@ on:
     paths:
       - '.github/workflows/build-openssl-images.yml'
       - 'ci/openssl.env'
+      - 'ci/Dockerfile'
+      - 'ci/install-openssl.sh'
   push:
     branches:
       - main
     paths:
       - '.github/workflows/build-openssl-images.yml'
       - 'ci/openssl.env'
-
+      - 'ci/Dockerfile'
+      - 'ci/install-openssl.sh'
 jobs:
   build:
     runs-on: ubuntu-latest

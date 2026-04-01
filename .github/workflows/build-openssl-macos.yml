@@ -30,6 +30,8 @@ jobs:
       - name: Download OpenSSL
         run: |
           curl -Lo openssl.tar.gz https://github.com/openssl/openssl/releases/download/$OPENSSL_VERSION/$OPENSSL_VERSION.tar.gz
+          ls
+          shasum -a 256 openssl.tar.gz
           echo "${OPENSSL_SHA256}  openssl.tar.gz" | shasum -a 256 -c
       - name: Extract OpenSSL
         run: |
