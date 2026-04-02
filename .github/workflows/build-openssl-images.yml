@@ -34,11 +34,11 @@ jobs:
       fail-fast: false
       matrix:
         IMAGE:
-          - manylinux2014_x86_64
-          - musllinux_1_2_x86_64
+          - { PLATFORM="manylinux2014_x86_64", PREREQUISITES="yum -y install binutils perl perl-IPC-Cmd perl-Time-Piece"}
+          - { PLATFORM="musllinux_1_2_x86_64" }
 
 
-    name: "${{ matrix.IMAGE }}"
+    name: "${{ matrix.IMAGE.PLATFORM }}"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -54,7 +54,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
         with:
-          images: ghcr.io/pinecrew/pined-openssl-builder-${{ matrix.IMAGE }}
+          images: ghcr.io/pinecrew/pined-openssl-builder-${{ matrix.IMAGE.PLATFORM }}
 
       - name: Build and push Docker image
         id: push
@@ -62,7 +62,8 @@ jobs:
         with:
           context: ci
           build-args: |
-            PYPA_IMAGE=${{ matrix.IMAGE }}
+            PYPA_IMAGE=${{ matrix.IMAGE.PLATFORM }}
+            PREREQUISITES=${{ matrix.IMAGE.PREREQUISITES }}
             NPROCESSORS=4
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -72,7 +73,7 @@ jobs:
       - name: Generate artifact attestation
         uses: actions/attest@v4
         with:
-          subject-name: ghcr.io/pinecrew/pined-openssl-builder-${{ matrix.IMAGE }}
+          subject-name: ghcr.io/pinecrew/pined-openssl-builder-${{ matrix.IMAGE.PLATFORM }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
         if: (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'

@@ -1,7 +1,7 @@
 name: Build, test and upload to PyPI
 
 on: [push]
-  
+
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -20,8 +20,8 @@ jobs:
 
       - uses: dawidd6/action-download-artifact@8a338493df3d275e4a7a63bcff3b8fe97e51a927 # v19
         with:
-          repo: pyca/infra
-          workflow: build-macos-openssl.yml
+          repo: pinecrew/pined-openssl
+          workflow: build-openssl-macos.yml
           branch: main
           workflow_conclusion: success
           name: openssl-macos-arm64
@@ -33,9 +33,9 @@ jobs:
         env:
           CIBW_ENVIRONMENT: 'OPENSSL_USE_STATIC_LIBS=TRUE'
           CIBW_ENVIRONMENT_MACOS: 'OPENSSL_ROOT_DIR=../openssl-macos-arm64/'
-          CIBW_ENVIRONMENT_LINUX: 'OPENSSL_ROOT_DIR=/opt/pyca/cryptography/openssl'
-          CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-manylinux2014:x86_64
-          CIBW_MUSLLINUX_X86_64_IMAGE: ghcr.io/pyca/cryptography-musllinux_1_2:x86_64
+          CIBW_ENVIRONMENT_LINUX: 'OPENSSL_ROOT_DIR=/opt/openssl'
+          CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/pinecrew/pined-openssl-builder-manylinux2014:main
+          CIBW_MUSLLINUX_X86_64_IMAGE: ghcr.io/pinecrew/pined-openssl-builder-musllinux_1_2:main
           CIBW_TEST_REQUIRES: pytest
           CIBW_TEST_COMMAND: pytest {project}/tests
           CIBW_SKIP: "cp3??t-*"
