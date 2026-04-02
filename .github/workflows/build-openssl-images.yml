@@ -34,8 +34,10 @@ jobs:
       fail-fast: false
       matrix:
         IMAGE:
-          - { PLATFORM="manylinux2014_x86_64", PREREQUISITES="yum -y install binutils perl perl-IPC-Cmd perl-Time-Piece"}
-          - { PLATFORM="musllinux_1_2_x86_64" }
+          - PLATFORM: manylinux2014_x86_64
+            PREREQUISITES: "yum -y install binutils perl perl-IPC-Cmd perl-Time-Piece"
+
+          - PLATFORM: musllinux_1_2_x86_64
 
 
     name: "${{ matrix.IMAGE.PLATFORM }}"
