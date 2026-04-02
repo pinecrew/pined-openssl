@@ -7,13 +7,16 @@ on:
   pull_request:
     paths:
       - '.github/workflows/build-openssl-macos.yml'
-      - 'ci/openssl.env'
+      - 'ci/install-openssl.sh'
+      - 'ci/download-openssl.sh'
+
   push:
     branches:
       - main
     paths:
       - '.github/workflows/build-openssl-macos.yml'
-      - 'ci/openssl.env'
+      - 'ci/install-openssl.sh'
+      - 'ci/download-openssl.sh'
 
 jobs:
   build:
@@ -23,36 +26,18 @@ jobs:
       - uses: actions/checkout@v6.0.1
         with:
           persist-credentials: false
-      - name: Setup env variables
-        run: |
-          cat ci/openssl.env | grep -v '^#' | grep -v '^$' >> $GITHUB_ENV
-        shell: bash
-      - name: Download OpenSSL
-        run: |
-          curl -Lo openssl.tar.gz https://github.com/openssl/openssl/releases/download/$OPENSSL_VERSION/$OPENSSL_VERSION.tar.gz
-          ls
-          shasum -a 256 openssl.tar.gz
-          echo "${OPENSSL_SHA256}  openssl.tar.gz" | shasum -a 256 -c
-      - name: Extract OpenSSL
-        run: |
-          tar zxf openssl.tar.gz
+
       - name: Build OpenSSL
         run: |
           set -x
           mkdir artifact
           BASEDIR=$(pwd)
-          cd openssl*
-          perl ./Configure \
-              --prefix="${BASEDIR}/artifact" \
-              --openssldir="/opt/homebrew/etc/openssl@3" \
-              darwin64-arm64-cc \
-              $OPENSSL_BUILD_FLAGS
-          make -j$(sysctl -n hw.logicalcpu)
-          make install_sw
+          ci/download-openssl.sh
+          ci/install-openssl.sh ${BASEDIR}/artifact $(sysctl -n hw.logicalcpu)
         env:
           CFLAGS: "-mmacosx-version-min=11.0"
 
       - uses: actions/upload-artifact@v7.0.0
         with:
-          name: "openssl-macos-${{ matrix.ARCH.ARTIFACT_NAME }}"
+          name: "openssl-macos-arm64"
           path: artifact/

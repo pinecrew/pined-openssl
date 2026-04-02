@@ -8,17 +8,18 @@ on:
   pull_request:
     paths:
       - '.github/workflows/build-openssl-images.yml'
-      - 'ci/openssl.env'
       - 'ci/Dockerfile'
       - 'ci/install-openssl.sh'
+      - 'ci/download-openssl.sh'
   push:
     branches:
       - main
     paths:
       - '.github/workflows/build-openssl-images.yml'
-      - 'ci/openssl.env'
       - 'ci/Dockerfile'
       - 'ci/install-openssl.sh'
+      - 'ci/download-openssl.sh'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,11 +43,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Setup env variables
-        run: |
-          cat ci/openssl.env | grep -v '^#' | grep -v '^$' >> $GITHUB_ENV
-        shell: bash
-
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
         with:
@@ -54,13 +50,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
         with:
           images: ghcr.io/pinecrew/pined-openssl-builder
-
 
       - name: Build and push Docker image
         id: push
@@ -69,14 +63,11 @@ jobs:
           context: ci
           build-args: |
             PYPA_IMAGE=${{ matrix.IMAGE }}
-            OPENSSL_VERSION=${OPENSSL_VERSION}
-            OPENSSL_SHA256=${OPENSSL_SHA256}
-            BUILD_FLAGS=${BUILD_FLAGS}
+            NPROCESSORS=4
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
         if: (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-
 
       - name: Generate artifact attestation
         uses: actions/attest@v4
