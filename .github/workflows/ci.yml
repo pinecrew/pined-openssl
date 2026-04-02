@@ -43,8 +43,8 @@ jobs:
           CIBW_ENVIRONMENT: 'OPENSSL_USE_STATIC_LIBS=TRUE'
           CIBW_ENVIRONMENT_MACOS: 'OPENSSL_ROOT_DIR=../openssl-macos-arm64/'
           CIBW_ENVIRONMENT_LINUX: 'OPENSSL_ROOT_DIR=/opt/openssl'
-          CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/pinecrew/pined-openssl-builder-manylinux2014:main
-          CIBW_MUSLLINUX_X86_64_IMAGE: ghcr.io/pinecrew/pined-openssl-builder-musllinux_1_2:main
+          CIBW_MANYLINUX_X86_64_IMAGE: ghcr.io/pinecrew/pined-openssl-builder-manylinux2014_x86_64:main
+          CIBW_MUSLLINUX_X86_64_IMAGE: ghcr.io/pinecrew/pined-openssl-builder-musllinux_1_2_x86_64:main
           CIBW_TEST_REQUIRES: pytest
           CIBW_TEST_COMMAND: pytest {project}/tests
           CIBW_SKIP: "cp3??t-*"
