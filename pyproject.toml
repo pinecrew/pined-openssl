@@ -8,6 +8,13 @@ dependencies = [
     "cryptography>=46.0.5",
 ]
 
+[dependency-groups]
+dev = [
+    "poethepoet>=0.42.1",
+    "pytest>=9.0.2",
+    "ruff>=0.15.8",
+]
+
 [build-system]
 requires = ["scikit-build-core", "pybind11"]
 build-backend = "scikit_build_core.build"
@@ -26,9 +33,43 @@ reportUnusedCallResult = false
 [tool.ty.environment]
 root = ["."]
 
-[dependency-groups]
-dev = [
-    "poethepoet>=0.42.1",
-    "pytest>=9.0.2",
-    "ruff>=0.15.8",
+[tool.poe.tasks]
+# отформатировать код ruff'ом
+format = { cmd = "ruff format" }
+# проверить линтером ruff'а и пофиксить автоисправляемое (мб сюда и pyright докинуть)
+lint = { cmd = "ruff check --fix" }
+# запуск тестов
+test = { cmd = "pytest" }
+
+[tool.poe.tasks.fix]
+sequence = [
+    { cmd = "ruff format ${check:+--check} $target" },
+    { cmd = "ruff check $target --fix ${unsafe:+--unsafe-fixes}" },
+    { cmd = "ruff format $target" },
 ]
+args = [
+    { name = "unsafe", options = ["--unsafe-fixes"], type = "boolean" },
+    { name = "check", options = ["--check"], type = "boolean" },
+    { name = "target", default = ".", positional = true, multiple = true }
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+output-format = "grouped"
+show-fixes = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+exclude = ["urls.py"]
+docstring-code-line-length = 80
+
+[tool.ruff.lint]
+select = [
+    "A", "ANN", "ARG", "B", "BLE", "C4", "C90", "DJ", "E", "EM", "F", "FA", "FBT003", "G", "I", "INP", "INT", "ISC",
+    "N", "PERF", "PGH004", "PIE", "PL", "PT", "PTH", "Q", "RET", "RSE", "RUF", "SIM", "T20", "TCH", "TID", "UP", "W",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["INP001"]
